@@ -53,7 +53,7 @@ jobs:
            "License: \(.[]?.license)\n" +
            (map("  - " + .file) | join("\n")) +
           "\n"
-          ''
+          '
 
     
 
