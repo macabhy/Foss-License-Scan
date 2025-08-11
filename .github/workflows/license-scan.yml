@@ -38,6 +38,11 @@ jobs:
           echo "Detected licenses:"
           jq -r '.. | .license_expression? // empty' scan-output.json | sort -u
 
+      - name: 🔍 Inspect first file object
+        run: |
+         jq '.files[0]' scan-output.json
+      
+
       - name: 📜 Show licenses grouped by files
         run: |
           echo "📊 Licenses and associated files:"
