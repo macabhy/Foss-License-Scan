@@ -27,7 +27,7 @@ jobs:
             --json-pp scan-output.json \
             src/lodash
 
-            - name: ❌ Fail if exclusive GPL/AGPL license detected
+      - name: ❌ Fail if exclusive GPL/AGPL license detected
         run: |
           set -eux
           # Define GPL/AGPL licenses (lowercase)
