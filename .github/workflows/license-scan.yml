@@ -45,17 +45,18 @@ jobs:
       - name: 📜 Show licenses grouped by files
         run: |
           echo "📊 Licenses and associated files:"
-          jq -r '
+          jq '
             .files[]
             | select(.detected_license_expression != null)
             | {license: .detected_license_expression, file: .path}
           ' scan-output.json \
-          | jq -s '
+          | jq -s -r '
               group_by(.license)[] |
               "License: \(.0.license)\n" +
               (map(.file) | unique | map("  - " + .) | join("\n")) +
               "\n"
             '
+
 
 
 
