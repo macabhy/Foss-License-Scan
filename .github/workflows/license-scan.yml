@@ -27,14 +27,15 @@ jobs:
             --json-pp scan-output.json \
             src/lodash
 
-      - name: 📄 Show scan-output.json
+      - name: 📄 Show last 20 lines of scan-output.json
         run: |
-          set -eux
-          ls -l scan-output.json
-          head -n 20 scan-output.json
+         set -eux
+         ls -l scan-output.json
+         tail -n 20 scan-output.json
 
-      - name: 📜 List all detected licenses
+      - name: 📜 Show detected licenses
         run: |
           echo "Detected licenses:"
-          jq -r '.files[]?.licenses[]?.license_expression' scan-output.json | sort -u
+          jq -r '.. | .license_expression? // empty' scan-output.json | sort -u
+
           
