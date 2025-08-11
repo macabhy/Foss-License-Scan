@@ -32,3 +32,9 @@ jobs:
           set -eux
           ls -l scan-output.json
           head -n 20 scan-output.json
+
+      - name: 📜 List all detected licenses
+        run: |
+          echo "Detected licenses:"
+          jq -r '.files[]?.licenses[]?.license_expression' scan-output.json | sort -u
+          
