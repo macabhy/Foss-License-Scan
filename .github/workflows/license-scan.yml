@@ -1,0 +1,31 @@
+name: Test ScanCode Output
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 📦 Install ScanCode Toolkit
+        run: |
+          set -eux  # fail fast (-e), print commands (-x), treat unset vars as error (-u)
+          git clone https://github.com/nexB/scancode-toolkit.git
+          cd scancode-toolkit
+          ./configure
+
+      - name: 🚀 Run ScanCode
+        run: |
+          set -eux
+          ./scancode-toolkit/scancode -clpeui \
+            --json-pp scan-output.json \
+            src/lodash
+
+      - name: 📄 Show scan-output.json
+        run: |
+          set -eux
+          ls -l scan-output.json
+          head -n 20 scan-output.json
