@@ -38,10 +38,23 @@ jobs:
           echo "Detected licenses:"
           jq -r '.. | .license_expression? // empty' scan-output.json | sort -u
 
-      - name: 📜 Show detected licenses with file names
+      - name: 📜 Show licenses grouped by files
         run: |
-          echo "File → License mapping:"
-          jq -r '.files[]? | select(.licenses) | "\(.path): \(.licenses[]?.license_expression)"' scan-output.json | sort -u
+          echo "📊 Licenses and associated files:"
+          jq -r '
+          .files[]
+          | select(.licenses | length > 0)
+          | . as $file
+          | [.licenses[].license_expression] | unique[]
+          | {license: ., file: $file.path}
+          ' scan-output.json \
+          | jq -s '
+           group_by(.license)[] |
+           "License: \(.[]?.license)\n" +
+           (map("  - " + .file) | join("\n")) +
+          "\n"
+          ''
+
     
 
           
