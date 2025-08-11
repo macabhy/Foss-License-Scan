@@ -44,7 +44,11 @@ jobs:
 
       - name: 📜 Show licenses grouped by files
         run: |
-          echo -e "\033[1;34m📊 Licenses and associated files:\033[0m"
+          BLUE='\033[1;34m'
+          GREEN='\033[1;32m'
+          RESET='\033[0m'
+
+          echo -e "${BLUE}📊 Licenses and associated files:${RESET}"
           jq '
             .files[]
             | select(.detected_license_expression != null and .detected_license_expression != "")
@@ -52,10 +56,18 @@ jobs:
           ' scan-output.json \
           | jq -s -r '
               group_by(.license)[] |
-              "License: \033[1;32m\(.0.license)\033[0m\n" +
+              "License: " + .[0].license + "\n" +
               (map(.file) | unique | sort | map("  - " + .) | join("\n")) +
               "\n"
-            '
+            ' \
+          | while IFS= read -r line; do
+              if [[ "$line" == License:* ]]; then
+                echo -e "License: ${GREEN}${line#License: }${RESET}"
+              else
+                echo "$line"
+              fi
+            done
+
 
 
 
