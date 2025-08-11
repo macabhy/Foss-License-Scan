@@ -27,6 +27,56 @@ jobs:
             --json-pp scan-output.json \
             src/lodash
 
+      - name: ❌ Fail if exclusive GPL/AGPL license detected
+        run: |
+          set -eux
+          # Define GPL/AGPL licenses (lowercase for safety)
+          GPL_LICENSES=(
+            "gpl-2.0-only"
+            "gpl-2.0-or-later"
+            "gpl-3.0-only"
+            "gpl-3.0-or-later"
+            "agpl-3.0-only"
+            "agpl-3.0-or-later"
+          )
+
+          # Function to lowercase a string
+          strtolower() {
+            echo "$1" | tr '[:upper:]' '[:lower:]'
+          }
+
+          # Extract all license expressions from files (detected_license_expression)
+          mapfile -t licenses < <(jq -r '.files[].detected_license_expression // empty' scan-output.json)
+
+          for expr in "${licenses[@]}"; do
+            # Remove spaces for safety
+            expr_nospace=$(echo "$expr" | tr -d ' ')
+
+            # Count number of licenses separated by AND/OR
+            # We split by "AND" or "OR" ignoring case
+            IFS=$'\n' read -rd '' -a parts < <(echo "$expr" | grep -oiE '[^ ]+' | tr '[:upper:]' '[:lower:]' | grep -v -E 'and|or' || true)
+            
+            # Number of licenses is length of parts
+            count=${#parts[@]}
+            
+            # If single license expression
+            if [ "$count" -eq 1 ]; then
+              lic_lower=$(strtolower "${parts[0]}")
+
+              # Check if in GPL list
+              for gpl_lic in "${GPL_LICENSES[@]}"; do
+                if [ "$lic_lower" = "$gpl_lic" ]; then
+                  echo "ERROR: File licensed exclusively under GPL/AGPL: $expr"
+                  exit 1
+                fi
+              done
+            else
+              # Multi-licensed: do nothing (allow build)
+              echo "INFO: Multi-licensed file, skipping fail: $expr"
+            fi
+          done
+      
+
       - name: 📄 Show last 20 lines of scan-output.json
         run: |
          set -eux
