@@ -41,24 +41,22 @@ jobs:
       - name: 🔍 Inspect first file object
         run: |
          jq '.files[0]' scan-output.json
-      
-
+         
       - name: 📜 Show licenses grouped by files
         run: |
           echo "📊 Licenses and associated files:"
           jq -r '
-          .files[]
-          | select(.licenses | length > 0)
-          | . as $file
-          | [.licenses[].license_expression] | unique[]
-          | {license: ., file: $file.path}
+            .files[]
+            | select(.detected_license_expression != null and .detected_license_expression != "")
+            | {license: .detected_license_expression, file: .path}
           ' scan-output.json \
           | jq -s '
-           group_by(.license)[] |
-           "License: \(.[]?.license)\n" +
-           (map("  - " + .file) | join("\n")) +
-          "\n"
-          '
+              group_by(.license)[] |
+              "License: \(.[]?.license)\n" +
+              (map("  - " + .file) | join("\n")) +
+              "\n"
+            '
+
 
     
 
