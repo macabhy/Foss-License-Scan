@@ -20,12 +20,12 @@ jobs:
           cd scancode-toolkit
           ./configure 
                
-      - name: 🔍 Verify dummy file presence
-        run: |
-         echo "Listing files under src/lodash:"
-         ls -R src/lodash
-         echo "Showing dummy-gpl-file.js content:"
-         cat src/lodash/dummy-gpl-file.js
+    #  - name: 🔍 Verify dummy file presence
+    #    run: |
+    #     echo "Listing files under src/lodash:"
+    #     ls -R src/lodash
+    #     echo "Showing dummy-gpl-file.js content:"
+    #     cat src/lodash/dummy-gpl-file.js
 
       - name: 🚀 Run ScanCode
         run: |
@@ -56,7 +56,7 @@ jobs:
             # Find files where risky license is the ONLY license (no OR permissive license)
             MATCHED_FILES=$(jq -r \
               --arg lic "$lic" \
-              '.files[] | select(.license_expression == $lic) | .path' uuid-scan.json)
+              '.files[] | select(.license_expression == $lic) | .path' scan-output.json)
 
             if [[ -n "$MATCHED_FILES" ]]; then
               FOUND_RISKY=1
