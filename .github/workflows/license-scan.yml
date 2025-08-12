@@ -27,44 +27,6 @@ jobs:
             --json-pp scan-output.json \
             src/lodash
 
-      - name: ❌ Fail if exclusive GPL/AGPL license detected
-        run: |
-          set -eux
-          # Define GPL/AGPL licenses (lowercase)
-          GPL_LICENSES=(
-            "gpl-2.0-only"
-            "gpl-2.0-or-later"
-            "gpl-3.0-only"
-            "gpl-3.0-or-later"
-            "agpl-3.0-only"
-            "agpl-3.0-or-later"
-          )
-
-          # Extract license expressions from scan output
-          mapfile -t licenses < <(jq -r '.files[].detected_license_expression // empty' scan-output.json)
-
-          for expr in "${licenses[@]}"; do
-            # Lowercase expression
-            expr_lower=$(echo "$expr" | tr '[:upper:]' '[:lower:]')
-
-            # Replace AND/OR with newline to split licenses
-            IFS=$'\n' read -r -a parts < <(echo "$expr_lower" | sed -E 's/\s+(and|or)\s+/\n/g')
-
-            count=${#parts[@]}
-
-            if [ "$count" -eq 1 ]; then
-              lic="${parts[0]}"
-              for gpl_lic in "${GPL_LICENSES[@]}"; do
-                if [ "$lic" = "$gpl_lic" ]; then
-                  echo "ERROR: File licensed exclusively under GPL/AGPL: $expr"
-                  exit 1
-                fi
-              done
-            else
-              echo "INFO: Multi-licensed file, skipping fail: $expr"
-            fi
-          done
-
       - name: 📄 Show last 20 lines of scan-output.json
         run: |
          set -eux
@@ -76,6 +38,27 @@ jobs:
           echo "Detected licenses:"
           jq -r '.. | .license_expression? // empty' scan-output.json | sort -u
 
+      - name: Check for risky-only licenses
+        run: |
+          risky_files=$(jq -r '
+            .files[]
+            | select(.license_expression != null)
+            | select(
+                (.license_expression | test("gpl-2.0|gpl-3.0|agpl-3.0"; "i"))
+                and
+                (.license_expression | test("mit|bsd|apache-2.0"; "i") | not)
+              )
+            | .path
+          ' scancode-output.json)
+
+          if [ -n "$risky_files" ]; then
+            echo "❌ Build failed due to risky-only licenses:"
+            echo "$risky_files"
+            exit 1
+          else
+            echo "✅ No risky-only licenses found. Continuing..."
+          fi
+          
      # - name: 🔍 Inspect first file object
      #   run: |
      #    jq '.files[0]' scan-output.json
