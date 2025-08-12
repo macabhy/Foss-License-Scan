@@ -49,7 +49,7 @@ jobs:
                 (.license_expression | test("mit|bsd|apache-2.0"; "i") | not)
               )
             | .path
-          ' scancode-output.json)
+          ' scan-output.json)
 
           if [ -n "$risky_files" ]; then
             echo "❌ Build failed due to risky-only licenses:"
@@ -58,7 +58,7 @@ jobs:
           else
             echo "✅ No risky-only licenses found. Continuing..."
           fi
-          
+
      # - name: 🔍 Inspect first file object
      #   run: |
      #    jq '.files[0]' scan-output.json
