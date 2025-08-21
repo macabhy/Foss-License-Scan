@@ -53,7 +53,6 @@ jobs:
             | select(. != null)
           ' scan-output.json | sort -u
 
-
       - name: Check for risky licenses
         run: |
           set -euo pipefail
@@ -97,6 +96,8 @@ jobs:
             echo "❌ Build failed due to risky license(s)."
             exit 1
           fi
+
+      
 
          # - name: 🔍 Inspect first file object
      #   run: |
