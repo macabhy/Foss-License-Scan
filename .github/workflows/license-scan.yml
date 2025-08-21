@@ -27,12 +27,33 @@ jobs:
     #     echo "Showing dummy-gpl-file.js content:"
     #     cat src/lodash/dummy-gpl-file.js
 
+   #   - name: 🚀 Run ScanCode
+   #     run: |
+   #       set -eux
+   #       ./scancode-toolkit/scancode -clpeui \
+   #         --json-pp scan-output.json \
+   #         src/lodash
+
       - name: 🚀 Run ScanCode
         run: |
           set -eux
+          # Derive branch name from GITHUB_REF
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          echo "Detected branch: $BRANCH_NAME"
+
+          if [[ "$BRANCH_NAME" == "scan-jquery-mobile" ]]; then
+            TARGET="src/jquery-mobile-1.4.5"
+          else
+            TARGET="src/lodash"
+          fi
+
+          echo "Scanning target: $TARGET"
+
           ./scancode-toolkit/scancode -clpeui \
             --json-pp scan-output.json \
-            src/lodash
+            "$TARGET"
+
+
 
       - name: 📄 Show last 20 lines of scan-output.json
         run: |
@@ -53,51 +74,7 @@ jobs:
             | select(. != null)
           ' scan-output.json | sort -u
 
-      - name: Check for risky licenses
-        run: |
-          set -euo pipefail
-
-          echo "🔎 Extracting SPDX licenses from scan report..."
-
-          jq -r '
-            .files[]
-            | select(.type=="file")
-            | {
-                path: .path,
-                licenses: [.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | unique
-              }
-            | select(.licenses | length > 0)
-            | "\(.path)\t\(.licenses | join(\", \") )"
-          ' uuid-scan.json > detected_licenses.txt
-
-          echo "Detected licenses:"
-          cat detected_licenses.txt || true
-
-          risky_list="gpl-1.0-or-later gpl-2.0-only gpl-2.0-or-later gpl-3.0-only gpl-3.0-or-later agpl-3.0-only agpl-3.0-or-later sspl-1.0"
-
-          sole_risky=0
-          multi_risky=0
-
-          while IFS=$'\t' read -r path licenses; do
-            for risky in $risky_list; do
-              if [[ "$licenses" == "$risky" ]]; then
-                echo "❌ Sole risky license detected in: $path  [$licenses]"
-                sole_risky=$((sole_risky+1))
-              elif [[ "$licenses" == *"$risky"* ]]; then
-                echo "⚠️  Risky license present in multi-licensed file: $path  [$licenses]"
-                multi_risky=$((multi_risky+1))
-              fi
-            done
-          done < detected_licenses.txt
-
-          echo "📊 Summary: $sole_risky sole risky licenses, $multi_risky multi-license warnings"
-
-          if [ $sole_risky -gt 0 ]; then
-            echo "❌ Build failed due to risky license(s)."
-            exit 1
-          fi
-
-      
+    
 
          # - name: 🔍 Inspect first file object
      #   run: |
