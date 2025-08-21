@@ -1,4 +1,6 @@
 /*
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
  * This file is part of the Dummy Project.
  *
  * Copyright (C) 2025 Abhay Kumar
@@ -17,5 +19,5 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  */
- 
+
 console.log("This is a dummy GPL-2.0-only file.");
