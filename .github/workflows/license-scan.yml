@@ -53,54 +53,50 @@ jobs:
             | select(. != null)
           ' scan-output.json | sort -u
 
-      - name: 🔍 Check for risky licenses
+      - name: 🚨 Check for risky copyleft (GPL/AGPL) — fail only if sole
         run: |
-          set -eux
-          echo "🔍 Checking for risky licenses..."
+          set -euo pipefail
 
-          # List of risky strong copyleft licenses
-          risky_licenses='["gpl-1.0","gpl-2.0","gpl-3.0","agpl-1.0","agpl-3.0"]'
+          # Files with a sole risky license (FAIL)
+          SOLE=$(
+            jq -r '
+              .files[]
+              | select(.type=="file")
+              | {path:.path, expr:(.detected_license_expression_spdx // .detected_license_expression // .license_expression)}
+              | select(.expr != null and (.expr | type == "string"))
+              | select((.expr | test("(?i)\\b(OR|AND)\\b") | not))        # sole license only
+              | . as $o
+              | (.expr | ascii_downcase) as $e
+              | select($e | test("^(gpl-(1\\.0|2\\.0|3\\.0)(\\+|-only)?|agpl-(1\\.0|3\\.0)(\\+|-only)?)$"))
+              | "\(.path)\t\(.expr)"
+            ' scan-output.json
+          )
 
-          # Collect files with sole risky licenses
-          risky_files=$(jq -r \
-            --argjson risky "$risky_licenses" '
-              .files[] 
-              | select(.license_expressions != null) 
-              | . as $f 
-              | (.license_expressions | unique) as $exprs 
-              | if ($exprs | length == 1 and ($exprs[0] as $e | $risky | index($e))) 
-                then "\($f.path)  [\($exprs[0])]" 
-                else empty 
-                end
-            ' scan-output.json)
+          # Files where GPL/AGPL appear in a multi-license expression (WARN only)
+          MULTI=$(
+            jq -r '
+              .files[]
+              | select(.type=="file")
+              | {path:.path, expr:(.detected_license_expression_spdx // .detected_license_expression // .license_expression)}
+              | select(.expr != null and (.expr | type == "string"))
+              | select(.expr | test("(?i)\\b(OR|AND)\\b"))                # multi-licensed
+              | select(.expr | test("(?i)(^|\\W)(gpl|agpl)-"))            # contains GPL/AGPL anywhere
+              | "\(.path)\t\(.expr)"
+            ' scan-output.json
+          )
 
-          # Collect files with risky licenses as part of multi-license expressions
-          risky_multis=$(jq -r \
-            --argjson risky "$risky_licenses" '
-              .files[] 
-              | select(.license_expressions != null) 
-              | . as $f 
-              | (.license_expressions | unique) as $exprs 
-              | select($exprs | length > 1 and any(. as $e | $risky | index($e)))
-              | "\($f.path)  [\($exprs | join(" AND "))]"
-            ' scan-output.json)
-
-          if [ -n "$risky_multis" ]; then
+          if [ -n "$MULTI" ]; then
             echo "⚠️  Risky licenses present in multi-licensed files (warning only):"
-            echo "$risky_multis"
+            echo "$MULTI" | awk -F '\t' '{printf "  - %s  [%s]\n",$1,$2}'
           fi
 
-          if [ -n "$risky_files" ]; then
+          if [ -n "$SOLE" ]; then
             echo "🚫 Sole risky copyleft licenses detected in these files:"
-            echo "$risky_files"
+            echo "$SOLE" | awk -F '\t' '{printf "  - %s  [%s]\n",$1,$2}'
             exit 1
-          else
-            echo "✅ Build passed: no sole risky copyleft licenses found."
           fi
 
-          echo "📜 Detected licenses:"
-          jq -r '.files[].license_expressions[]?' scan-output.json | sort -u
-
+          echo "✅ No sole risky copyleft licenses detected."
       
 
 
