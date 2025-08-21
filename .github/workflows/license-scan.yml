@@ -61,8 +61,11 @@ jobs:
           SOLE=$(jq -r '
             .files[]
             | select(.type=="file")
-            | {path:.path, expr:(.detected_license_expression_spdx)}
-            | select(.expr != null and (.expr | type == "string"))
+            | {
+                path:.path,
+                expr: ([.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | join(" AND "))
+              }
+            | select(.expr != null and .expr != "")
             | select((.expr | test("(?i)\\b(OR|AND)\\b") | not))  # sole license only
             | . as $o
             | (.expr | ascii_downcase) as $e
@@ -74,8 +77,11 @@ jobs:
           MULTI=$(jq -r '
             .files[]
             | select(.type=="file")
-            | {path:.path, expr:(.detected_license_expression_spdx)}
-            | select(.expr != null and (.expr | type == "string"))
+            | {
+                path:.path,
+                expr: ([.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | join(" AND "))
+              }
+            | select(.expr != null and .expr != "")
             | select(.expr | test("(?i)\\b(OR|AND)\\b"))          # multi-licensed
             | select(.expr | test("(?i)(^|\\W)(gpl|agpl)-"))      # contains GPL/AGPL anywhere
             | "\(.path)\t\(.expr)"
@@ -98,6 +104,7 @@ jobs:
 
           echo "✅ No sole risky copyleft licenses detected."
           echo "📊 Summary: $COUNT_SOLE sole risky licenses, $COUNT_MULTI multi-license warnings"
+
 
          # - name: 🔍 Inspect first file object
      #   run: |
