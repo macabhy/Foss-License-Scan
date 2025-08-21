@@ -68,7 +68,10 @@ jobs:
             # Case 2: Risky license in multi-license expression (WARN only)
             MULTI_MATCHED=$(jq -r \
               --arg lic "$lic" \
-              '.files[] | select(.license_expression | contains($lic) and .license_expression != $lic) | .path' scan-output.json)
+              '.files[] 
+               | select(.license_expression != null) 
+               | select(.license_expression != $lic and (.license_expression | contains($lic))) 
+               | .path' scan-output.json)
 
             if [[ -n "$MULTI_MATCHED" ]]; then
               echo "⚠️ Risky license present in multi-license expression: $lic"
@@ -84,7 +87,7 @@ jobs:
           else
             echo "✅ No sole risky copyleft licenses detected."
             echo "📜 Detected licenses:"
-            jq -r '.files[].license_expression' scan-output.json | sort -u
+            jq -r '.files[] | select(.license_expression != null) | .license_expression' scan-output.json | sort -u
           fi
 
 
