@@ -51,24 +51,35 @@ jobs:
           RISKY_LICENSES=("gpl-1.0" "gpl-2.0" "gpl-3.0" "gpl-2.0+" "gpl-3.0+" "agpl-1.0" "agpl-3.0")
           FOUND_RISKY=0
 
-          # Loop through risky licenses
           for lic in "${RISKY_LICENSES[@]}"; do
-            # Find files where risky license is the ONLY license (no OR permissive license)
-            MATCHED_FILES=$(jq -r \
+            # Case 1: Sole risky license (FAIL)
+            SOLE_MATCHED=$(jq -r \
               --arg lic "$lic" \
               '.files[] | select(.license_expression == $lic) | .path' scan-output.json)
 
-            if [[ -n "$MATCHED_FILES" ]]; then
+            if [[ -n "$SOLE_MATCHED" ]]; then
               FOUND_RISKY=1
-              echo "🚫 Risky license detected: $lic"
-              echo "$MATCHED_FILES" | while read -r file; do
+              echo "🚫 Sole risky license detected: $lic"
+              echo "$SOLE_MATCHED" | while read -r file; do
+                echo "   - $file"
+              done
+            fi
+
+            # Case 2: Risky license in multi-license expression (WARN only)
+            MULTI_MATCHED=$(jq -r \
+              --arg lic "$lic" \
+              '.files[] | select(.license_expression | contains($lic) and .license_expression != $lic) | .path' scan-output.json)
+
+            if [[ -n "$MULTI_MATCHED" ]]; then
+              echo "⚠️ Risky license present in multi-license expression: $lic"
+              echo "$MULTI_MATCHED" | while read -r file; do
                 echo "   - $file"
               done
             fi
           done
 
           if [[ $FOUND_RISKY -eq 1 ]]; then
-            echo "❌ Build failed due to risky copyleft licenses."
+            echo "❌ Build failed due to sole risky copyleft licenses."
             exit 1
           else
             echo "✅ No sole risky copyleft licenses detected."
