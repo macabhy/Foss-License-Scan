@@ -1,10 +1,23 @@
-name: Test ScanCode Output
+#name Test ScanCode Output
+
+#on
+# push:
+#   branches:
+#     - main
+# workflow_dispatch:
+
+name: License Scan
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+      - "scan-*"
+  pull_request:
+    branches:
+      - main
+      - "scan-*"
+
 
 jobs:
   scan:
