@@ -53,58 +53,50 @@ jobs:
             | select(. != null)
           ' scan-output.json | sort -u
 
-      - name: 🚨 Check for risky copyleft (GPL/AGPL) — fail only if sole
+
+      - name: Check for risky licenses
         run: |
           set -euo pipefail
 
-          # Files with a sole risky license (FAIL)
-          SOLE=$(jq -r '
+          echo "🔎 Extracting SPDX licenses from scan report..."
+
+          jq -r '
             .files[]
             | select(.type=="file")
             | {
-                path:.path,
-                expr: ([.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | join(" AND "))
+                path: .path,
+                licenses: [.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | unique
               }
-            | select(.expr != null and .expr != "")
-            | select((.expr | test("(?i)\\b(OR|AND)\\b") | not))  # sole license only
-            | . as $o
-            | (.expr | ascii_downcase) as $e
-            | select($e | test("^(gpl-(1\\.0|2\\.0|3\\.0)(\\+|-only)?|agpl-(1\\.0|3\\.0)(\\+|-only)?)$"))
-            | "\(.path)\t\(.expr)"
-          ' scan-output.json)
+            | select(.licenses | length > 0)
+            | "\(.path)\t\(.licenses | join(\", \") )"
+          ' uuid-scan.json > detected_licenses.txt
 
-          # Files where GPL/AGPL appear in a multi-license expression (WARN only)
-          MULTI=$(jq -r '
-            .files[]
-            | select(.type=="file")
-            | {
-                path:.path,
-                expr: ([.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | join(" AND "))
-              }
-            | select(.expr != null and .expr != "")
-            | select(.expr | test("(?i)\\b(OR|AND)\\b"))          # multi-licensed
-            | select(.expr | test("(?i)(^|\\W)(gpl|agpl)-"))      # contains GPL/AGPL anywhere
-            | "\(.path)\t\(.expr)"
-          ' scan-output.json)
+          echo "Detected licenses:"
+          cat detected_licenses.txt || true
 
-          COUNT_SOLE=$(echo "$SOLE" | grep -c . || true)
-          COUNT_MULTI=$(echo "$MULTI" | grep -c . || true)
+          risky_list="gpl-1.0-or-later gpl-2.0-only gpl-2.0-or-later gpl-3.0-only gpl-3.0-or-later agpl-3.0-only agpl-3.0-or-later sspl-1.0"
 
-          if [ -n "$MULTI" ]; then
-            echo "⚠️  Risky licenses present in multi-licensed files (warning only):"
-            echo "$MULTI" | awk -F '\t' '{printf "  - %s  [%s]\n",$1,$2}'
-          fi
+          sole_risky=0
+          multi_risky=0
 
-          if [ -n "$SOLE" ]; then
-            echo "🚫 Sole risky copyleft licenses detected in these files:"
-            echo "$SOLE" | awk -F '\t' '{printf "  - %s  [%s]\n",$1,$2}'
-            echo "📊 Summary: $COUNT_SOLE sole risky licenses, $COUNT_MULTI multi-license warnings"
+          while IFS=$'\t' read -r path licenses; do
+            for risky in $risky_list; do
+              if [[ "$licenses" == "$risky" ]]; then
+                echo "❌ Sole risky license detected in: $path  [$licenses]"
+                sole_risky=$((sole_risky+1))
+              elif [[ "$licenses" == *"$risky"* ]]; then
+                echo "⚠️  Risky license present in multi-licensed file: $path  [$licenses]"
+                multi_risky=$((multi_risky+1))
+              fi
+            done
+          done < detected_licenses.txt
+
+          echo "📊 Summary: $sole_risky sole risky licenses, $multi_risky multi-license warnings"
+
+          if [ $sole_risky -gt 0 ]; then
+            echo "❌ Build failed due to risky license(s)."
             exit 1
           fi
-
-          echo "✅ No sole risky copyleft licenses detected."
-          echo "📊 Summary: $COUNT_SOLE sole risky licenses, $COUNT_MULTI multi-license warnings"
-
 
          # - name: 🔍 Inspect first file object
      #   run: |
