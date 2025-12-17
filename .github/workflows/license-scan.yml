@@ -18,7 +18,15 @@ jobs:
           set -eux  # fail fast (-e), print commands (-x), treat unset vars as error (-u)
           git clone https://github.com/nexB/scancode-toolkit.git
           cd scancode-toolkit
-          ./configure 
+          ./configure &
+          PID=$!
+
+          while kill -0 $PID 2>/dev/null; do
+            echo "⏳ ScanCode configure still running..."
+            sleep 20
+          done
+
+          wait $PID
                
     #  - name: 🔍 Verify dummy file presence
     #    run: |
