@@ -1,147 +1,90 @@
-name: Test ScanCode Output
+name: FOSS License Scan
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  scan:
+  scancode:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 📥 Checkout repo
+      # --------------------------------------------------
+      # 1. Checkout repository
+      # --------------------------------------------------
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 📦 Install ScanCode Toolkit
+      # --------------------------------------------------
+      # 2. Run ScanCode (official, prebuilt, CI-safe)
+      # --------------------------------------------------
+      - name: 🔍 Run ScanCode license scan
+        uses: aboutcode-org/scancode-action@beta
+        with:
+          pipelines: scan_codebase
+          output-formats: json
+          output-file: scan-output.json
+
+      # --------------------------------------------------
+      # 3. Show detected licenses (unique list)
+      # --------------------------------------------------
+      - name: 📜 Detected license expressions (summary)
         run: |
-          set -eux  # fail fast (-e), print commands (-x), treat unset vars as error (-u)
-          git clone https://github.com/nexB/scancode-toolkit.git
-          cd scancode-toolkit
-          ./configure &
-          PID=$!
-
-          while kill -0 $PID 2>/dev/null; do
-            echo "⏳ ScanCode configure still running..."
-            sleep 20
-          done
-
-          wait $PID
-               
-    #  - name: 🔍 Verify dummy file presence
-    #    run: |
-    #     echo "Listing files under src/lodash:"
-    #     ls -R src/lodash
-    #     echo "Showing dummy-gpl-file.js content:"
-    #     cat src/lodash/dummy-gpl-file.js
-
-      - name: 🚀 Run ScanCode
-        run: |
-          set -eux
-          ./scancode-toolkit/scancode -clpeui \
-            --json-pp scan-output.json \
-            src/lodash
-
-      - name: 📄 Show last 20 lines of scan-output.json
-        run: |
-         set -eux
-         ls -l scan-output.json
-         tail -n 20 scan-output.json
-
-#      - name: 📜 Show detected licenses
-#        run: |
-#          echo "Detected licenses:"
-#          jq -r '.. | .license_expression? // empty' scan-output.json | sort -u
-
-      - name: 📜 Show detected license expressions
-        run: |
+          echo "===== Detected Licenses ====="
           jq -r '
             .files[]
-            | (.detected_license_expression_spdx // .detected_license_expression // .license_expression)
-            | select(. != null)
-          ' scan-output.json | sort -u
+            | (.detected_license_expression_spdx
+               // .detected_license_expression
+               // empty)
+          ' scan-output.json \
+          | sort -u
 
-#      - name: Check for risky licenses
-#        run: |
-#          set -euo pipefail
-
-#          echo "🔎 Extracting SPDX licenses from scan report..."
-
-#          jq -r '
-#            .files[]
-#            | select(.type=="file")
-#            | {
-#                path: .path,
-#                licenses: [.license_detections[]? | select(.from_spdx==true) | .license_expression_spdx] | unique
-#              }
-#            | select(.licenses | length > 0)
-#            | "\(.path)\t\(.licenses | join(\", \") )"
-#          ' uuid-scan.json > detected_licenses.txt
-
- #         echo "Detected licenses:"
-#          cat detected_licenses.txt || true
-
-#          risky_list="gpl-1.0-or-later gpl-2.0-only gpl-2.0-or-later gpl-3.0-only gpl-3.0-or-later agpl-3.0-only agpl-3.0-or-later sspl-1.0"
-
-#          sole_risky=0
-#          multi_risky=0
-
-#          while IFS=$'\t' read -r path licenses; do
-#            for risky in $risky_list; do
-#              if [[ "$licenses" == "$risky" ]]; then
-#                echo "❌ Sole risky license detected in: $path  [$licenses]"
-#                sole_risky=$((sole_risky+1))
-#              elif [[ "$licenses" == *"$risky"* ]]; then
-#                echo "⚠️  Risky license present in multi-licensed file: $path  [$licenses]"
-#                multi_risky=$((multi_risky+1))
-#              fi
-#            done
-#          done < detected_licenses.txt
-
-#          echo "📊 Summary: $sole_risky sole risky licenses, $multi_risky multi-license warnings"
-
-#          if [ $sole_risky -gt 0 ]; then
-#            echo "❌ Build failed due to risky license(s)."
-#            exit 1
-#          fi
-
-      
-
-         # - name: 🔍 Inspect first file object
-     #   run: |
-     #    jq '.files[0]' scan-output.json
-
-      - name: 📜 Show licenses grouped by files
+      # --------------------------------------------------
+      # 4. Highlight licenses per file (grouped)
+      # --------------------------------------------------
+      - name: 📊 Licenses grouped by files
         run: |
-          BLUE='\033[1;34m'
-          GREEN='\033[1;32m'
-          RESET='\033[0m'
-
-          echo -e "${BLUE}📊 Licenses and associated files:${RESET}"
+          echo "===== Licenses and Files ====="
           jq '
             .files[]
             | select(.detected_license_expression != null and .detected_license_expression != "")
-            | {license: .detected_license_expression, file: .path}
+            | { license: .detected_license_expression, file: .path }
           ' scan-output.json \
-          | jq -s -r '
+          | jq -s '
               group_by(.license)[] |
-              "License: " + .[0].license + "\n" +
-              (map(.file) | unique | sort | map("  - " + .) | join("\n")) +
-              "\n"
+              {
+                license: .[0].license,
+                files: (map(.file) | unique | sort)
+              }
             ' \
-          | while IFS= read -r line; do
-              if [[ "$line" == License:* ]]; then
-                echo -e "License: ${GREEN}${line#License: }${RESET}"
-              else
-                echo "$line"
-              fi
-            done
+          | jq -r '
+              "License: " + .license + "\n"
+              + (.files | map("  - " + .) | join("\n"))
+              + "\n"
+            '
 
+      # --------------------------------------------------
+      # 5. Highlight risky licenses (NO FAIL, only warning)
+      # --------------------------------------------------
+      - name: ⚠️ Highlight risky licenses (GPL / AGPL)
+        run: |
+          echo "===== Risky License Check ====="
+          jq -r '
+            .files[]
+            | select(.detected_license_expression != null)
+            | select(.detected_license_expression
+                     | test("GPL|AGPL|SSPL"; "i"))
+            | "⚠️  " + .path + "  ->  " + .detected_license_expression
+          ' scan-output.json || true
 
-
-
-
-
-    
-
-          
+      # --------------------------------------------------
+      # 6. Upload ScanCode report (artifact)
+      # --------------------------------------------------
+      - name: 📦 Upload ScanCode report
+        uses: actions/upload-artifact@v4
+        with:
+          name: scancode-license-report
+          path: scan-output.json
